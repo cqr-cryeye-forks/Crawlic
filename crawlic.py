@@ -193,15 +193,12 @@ def googleDorks(url, google_dorks):
                                 headers={"referer": "http://google.com/",
                                          "User-Agent": getRandomUserAgent()},
                                 verify=False)
+
         try:
             parsed_response = json.loads(response.text)
-        except ValueError:
-            pass
-        
-        try:
             for result in parsed_response['responseData']['results']:
                 print "   [+] %s" % result['url']
-        except TypeError:
+        except (TypeError, ValueError):
             # Silently pass if google dorking fail
             pass
 
