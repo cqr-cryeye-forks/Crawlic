@@ -187,8 +187,8 @@ def searchFolders(url, folders_file, pattern):
         if response.status_code != 404 and pattern not in response.text:
             if "folders" not in result_dict:
                 result_dict["folders"] = []
-            print("   [+] /%s" % line)
-            result_dict["folders"].append({"folder": line})
+            print("   [+] ", url + line)
+            result_dict["folders"].append({"url": url+line})
 
             if '.git' in line:
                 fetch_repos('git', url + line, 'output/%s/' % url.replace('/', ''))
