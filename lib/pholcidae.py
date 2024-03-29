@@ -5,15 +5,15 @@ import re
 import heapq
 
 # importing modules corresponding to Python version
-if sys.version_info < (3,0,0):
+if sys.version_info < (3, 0, 0):
     import urlparse
     import urllib2
 else:
     from urllib import request as urllib2
     from urllib import parse as urlparse
 
-class Pholcidae:
 
+class Pholcidae:
     """" Pholcidae is a small and fast web crawler. """
 
     def __init__(self):
@@ -303,9 +303,9 @@ class Pholcidae:
         # if hash in URL - assumimg anchor or AJAX
         if link and '#' not in link:
             for regex in self._regex.valid_link:
-                    matches = regex.findall(link)
-                    if matches:
-                        return matches
+                matches = regex.findall(link)
+                if matches:
+                    return matches
         return []
 
     def _is_excluded(self, link):
@@ -362,7 +362,7 @@ class Pholcidae:
 
         cookies = AttrDict()
         # lowering headers keys
-        headers = {k.lower(): v for k,v in headers.items()}
+        headers = {k.lower(): v for k, v in headers.items()}
         if 'set-cookie' in headers:
             # splitting raw cookies
             raw_cookies = headers['set-cookie'].split(';')
@@ -376,7 +376,6 @@ class Pholcidae:
 
 
 class AttrDict(dict):
-
     """ A dict that allows for object-like property access syntax. """
 
     def __init__(self, new_dict=None):
@@ -395,7 +394,6 @@ class AttrDict(dict):
 
 
 class PholcidaeRedirectHandler(urllib2.HTTPRedirectHandler):
-
     """ Custom URL redirects handler. """
 
     def http_error_302(self, req, fp, code, msg, headers):
@@ -405,7 +403,6 @@ class PholcidaeRedirectHandler(urllib2.HTTPRedirectHandler):
 
 
 class PriorityList(object):
-
     """ List with priority. """
 
     def __init__(self):
@@ -416,7 +413,6 @@ class PriorityList(object):
         return str(self.heap)
 
     def add(self, element, matches, priority):
-
         """
             @type element mixed
             @type matches list
@@ -431,7 +427,6 @@ class PriorityList(object):
             self._set.add(element)
 
     def get(self):
-
         """
             @return tuple
 

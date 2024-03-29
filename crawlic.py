@@ -1,19 +1,25 @@
 #!/usr/bin/env python
+import pathlib
 
+from urllib3 import disable_warnings
+
+from constants import result_dict
 from lib.pholcidae import Pholcidae
 import argparse
 import random
 import requests
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from urllib3.exceptions import InsecureRequestWarning, LocationParseError
+
 import string
 import json
-from urlparse import urlparse
+from urllib.parse import urlparse
+
 import socket
 import time
 import re
 import sys
 import os
-import commands
+import subprocess
 
 user_agent_list = []
 
@@ -33,9 +39,11 @@ class Crawlic(Pholcidae):
                 response = requests.get(url + extension, verify=False)
                 if (response.status_code == 200 and
                         Crawlic.page_not_found_pattern not in response.text):
-                    print "   [+] %s" % url + extension
+                    print("   [+] %s" % url + extension)
             except requests.exceptions.ConnectionError as e:
-                print "[!] %s : %s" % (url, e)
+                print("[!] %s : %s" % (url, e))
+                # TODO: here?
+
 
 """
 Load configuration files
@@ -71,6 +79,7 @@ def loadGoogleDorks(google_dorks_file):
         google_dorks_list.append(line)
     return google_dorks_list
 
+
 """
 Usefull methods
 """
@@ -82,8 +91,10 @@ def getPageNotFoundPattern(url):
         url = url + "/"
     pattern = ""
     rnd = random.randint(5, 30)
-    rnd_string = ''.join([random.choice(string.letters) for c in xrange(0,
-                                                                        rnd)])
+    # rnd_string = ''.join([random.choice(string.letters) for c in xrange(0,
+    #                                                                     rnd)])
+    rnd_string = ''.join([random.choice(string.ascii_letters) for c in range(0, rnd)])
+
     url = url + rnd_string
     response = requests.get(url,
                             headers={"referer": url,
@@ -101,15 +112,15 @@ def getRandomUserAgent():
     return random.choice(user_agent_list)
 
 
-def printBanner(banner_file):
-    """ Print a fucking awesome ascii art banner """
-    banner_length = 0
-    for line in [line.rstrip() for line in open(banner_file)]:
-        print line
-        if len(line) > banner_length:
-            banner_length = len(line)
-
-    print "\n" + "#" * banner_length + "\n"
+# def printBanner(banner_file):
+#     """ print(a fucking awesome ascii art banner """
+#     banner_length = 0
+#     for line in [line.rstrip() for line in open(banner_file)]:
+#         print(line)
+#         if len(line) > banner_length:
+#             banner_length = len(line)
+#
+#     print("\n" + "#" * banner_length + "\n")
 
 
 def fetch_repos(repo_type, url, output_path):
@@ -136,8 +147,11 @@ def fetch_repos(repo_type, url, output_path):
                            'rip-svn.pl')
 
     full_cmd = 'cd %s && %s -u %s' % (output_path, cmd, url)
-    commands.getoutput(full_cmd)
-    print "        [+] %s repo cloned into %s" % (repo_type, output_path)
+    output = subprocess.getoutput(full_cmd)
+    # TODO
+    # commands.getoutput(full_cmd)
+    print("        [+] %s repo cloned into %s" % (repo_type, output_path))
+
 
 """
 Recon methods
@@ -162,7 +176,10 @@ def robotsExtract(url, pattern):
                 line = line.split("#")[0]
                 (rule, path) = line.split(":")
                 if rule.lower() == "disallow":
-                    print "   [+] %s" % path
+                    if "robots" not in result_dict:
+                        result_dict["robots"] = []
+                    print("   [+] %s" % path)
+                    result_dict["robots"].append({"path": path})
 
 
 def searchFolders(url, folders_file, pattern):
@@ -171,12 +188,21 @@ def searchFolders(url, folders_file, pattern):
         url = url + "/"
 
     for line in [line.strip() for line in open(folders_file)]:
-        response = requests.get(url + line,
-                                headers={"referer": url,
-                                         "User-Agent": getRandomUserAgent()},
-                                verify=False)
+        try:
+            response = requests.get(url + line,
+                                    headers={"referer": url,
+                                             "User-Agent": getRandomUserAgent()},
+                                    verify=False)
+        except LocationParseError:
+            print(url + line, " - error LocationParseError")
+            continue
+
         if response.status_code != 404 and pattern not in response.text:
-            print "   [+] /%s" % line
+            if "folders" not in result_dict:
+                result_dict["folders"] = []
+            print("   [+] /%s" % line)
+            result_dict["folders"].append({"folder": line})
+
             if '.git' in line:
                 fetch_repos('git', url + line, 'output/%s/' % url.replace('/', ''))
             elif '.svn' in line:
@@ -197,33 +223,39 @@ def googleDorks(url, google_dorks):
         try:
             parsed_response = json.loads(response.text)
             for result in parsed_response['responseData']['results']:
-                print "   [+] %s" % result['url']
+                print("   [+] %s" % result['url'])
+                if "google_dorks" not in result_dict:
+                    result_dict["google_dorks"] = []
+                result_dict["google_dorks"].append({"url": result['url']})
+
         except (TypeError, ValueError):
             # Silently pass if google dorking fail
             pass
 
 
 def reverseDns(ip, query_numbers):
-        page_counter = 1
-        domains = []
-        while page_counter < query_numbers:
-            try:
-                bing_url = 'http://www.bing.com/search?q=ip%3a'+str(ip)+'&go' \
-                           '=&filt=all&first=' + repr(page_counter) + '&' \
-                           'FORM=PERE'
-                response = requests.get(bing_url,
-                                        headers={"User-Agent": getRandomUserAgent()})
-                names = (re.findall('\/\/\w+\.\w+\-{0,2}\w+\.\w{2,4}',
-                                    response.text))
-                for name in names:
-                    get_ip = socket.gethostbyname_ex(name[2:])
-                    if get_ip[2][0] == ip and name[2:] not in domains:
-                        domains.append(name[2:])
-            except:
-                pass
-            page_counter += 10
-            time.sleep(0.5)
-        return domains
+    page_counter = 1
+    domains = []
+    while page_counter < query_numbers:
+        try:
+            bing_url = 'http://www.bing.com/search?q=ip%3a' + str(ip) + '&go' \
+                                                                        '=&filt=all&first=' + repr(page_counter) + '&' \
+                                                                                                                   'FORM=PERE'
+            response = requests.get(bing_url,
+                                    headers={"User-Agent": getRandomUserAgent()}, verify=True)
+            # names = (re.findall('\/\/\w+\.\w+\-{0,2}\w+\.\w{2,4}',
+            names = (re.findall(r'//\w+\.\w+\-{0,2}\w+\.\w{2,4}',
+                                response.text))
+            for name in names:
+                get_ip = socket.gethostbyname_ex(name[2:])
+                if get_ip[2][0] == ip and name[2:] not in domains:
+                    domains.append(name[2:])
+        except:
+            pass
+        page_counter += 10
+        time.sleep(0.5)
+    return domains
+
 
 """
 Scannings methods
@@ -232,59 +264,63 @@ Scannings methods
 
 def scanRobots(url, page_not_found_pattern):
     """ Start scan using robots.txt """
-    print "[*] Starting robots.txt search"
+    print("[*] Starting robots.txt search")
     try:
         robotsExtract(url, page_not_found_pattern)
     except KeyboardInterrupt:
-        print "[!] Skip robots.txt parsing"
+        print("[!] Skip robots.txt parsing")
     except requests.exceptions.ConnectionError:
-        print "[!] Connection error during robots.txt parsing"
-
+        print("[!] Connection error during robots.txt parsing")
 
 
 def scanFolders(url, folders, page_not_found_pattern):
     """ Start scan using folder list """
-    print "[*] Starting folder search"
+    print("[*] Starting folder search")
     try:
         searchFolders(url, folders, page_not_found_pattern)
     except KeyboardInterrupt:
-        print "[!] Skip folder search"
+        print("[!] Skip folder search")
     except requests.exceptions.ConnectionError:
-        print "[!] Connection error during folders search"
+        print("[!] Connection error during folders search")
 
 
 def scanTemporaryFiles(url):
     """ Start scan using temporary files extensions """
-    print "[*] Starting temp file search"
+    print("[*] Starting temp file search")
     try:
         crawlic = Crawlic()
         crawlic.start()
     except KeyboardInterrupt:
-        print "[!] Skip temp file search"
+        print("[!] Skip temp file search")
     except requests.exceptions.ConnectionError:
-        print "[!] Connection error during temporary files search"
+        print("[!] Connection error during temporary files search")
 
 
 def scanGoogleDorks(url, google_dorks):
     """ Start scan using google dorks """
-    print "[*] Starting Google dorking"
+    print("[*] Starting Google dorking")
     try:
         googleDorks(url, google_dorks)
     except KeyboardInterrupt:
-        print "[!] Skip Google dorking"
+        print("[!] Skip Google dorking")
     except requests.exceptions.ConnectionError:
-        print "[!] Connection error during google dorking"
+        print("[!] Connection error during google dorking")
 
 
 def scanReverseDns(url):
     """ Start reverse DNS search by bing """
-    print "[*] Searching domains on same server"
+    print("[*] Searching domains on same server")
     try:
         ip = socket.gethostbyname(urlparse(url).netloc)
         for domain in reverseDns(ip, 50):
-            print "   [+] %s" % domain
+            if "reverse_dns" not in result_dict:
+                result_dict["reverse_dns"] = []
+
+            print("   [+] %s" % domain)
+            result_dict["reverse_dns"].append({"domain": domain})
+
     except KeyboardInterrupt:
-        print "[!] Skip reverse dns search"
+        print("[!] Skip reverse dns search")
 
 
 """
@@ -294,7 +330,6 @@ Entry point
 
 def main():
     path = os.path.dirname(__file__)
-    printBanner(os.path.join(path, "banner.txt"))
     parser = argparse.ArgumentParser(description='Crawl website for'
                                                  'temporary files')
     parser.add_argument('-u',
@@ -303,6 +338,11 @@ def main():
                         dest="url",
                         required=True,
                         help='url')
+    parser.add_argument('-o',
+                        '--output-file',
+                        required=True,
+                        help='Path to output file',
+                        type=pathlib.Path)
     parser.add_argument('-e',
                         '--extensions',
                         action="store",
@@ -347,7 +387,7 @@ def main():
                         help='suppress invalid certificate warnings')
     args = parser.parse_args()
 
-    print "[*] Scan %s using techniques %s" % (args.url, args.techniques)
+    print("[*] Scan %s using techniques %s" % (args.url, args.techniques))
 
     if args.insecure:
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -358,48 +398,59 @@ def main():
         url = urlparse(args.url)
 
     protocol, domain = url.scheme, url.netloc
+    output_file = args.output_file
+
+    perform = True
 
     # Make sure the host is up
-    print "[*] Probe host %s" % args.url
+    print("[*] Probe host %s" % args.url)
     try:
         requests.head(args.url)
     except requests.exceptions.ConnectionError:
-        print '[!] Url %s not reachable or is down. Aborting' % args.url
-        sys.exit(0)
+        print('[!] Url %s not reachable or is down. Aborting' % args.url)
+        perform = False
 
-    # Load configuration from files
-    loadUserAgents(args.user_agent)
-    Crawlic.extension_list = loadDorks(args.dorks)
-    page_not_found_pattern = getPageNotFoundPattern(args.url)
-    google_dorks = loadGoogleDorks(args.google_dorks)
+    if perform:
+        # Disable errors about not secure connection
+        disable_warnings(InsecureRequestWarning)
 
-    # Configure crawler
-    Crawlic.page_not_found_pattern = page_not_found_pattern
-    Crawlic.settings = {'domain': domain,
-                        'start_page': '/',
-                        'stay_in_domain': True,
-                        'protocol': protocol + "://",
-                        'valid_links': loadExtensions(args.extensions),
-                        'headers': {'Referer': domain,
-                                    'User-Agent': getRandomUserAgent()
-                                    }
-                        }
+        # Load configuration from files
+        loadUserAgents(args.user_agent)
+        Crawlic.extension_list = loadDorks(args.dorks)
+        page_not_found_pattern = getPageNotFoundPattern(args.url)
+        google_dorks = loadGoogleDorks(args.google_dorks)
 
-    # Start recon here
-    for technique in args.techniques:
-        if technique == "r":
-            scanRobots(args.url, page_not_found_pattern)
-        elif technique == "f":
-            scanFolders(args.url, args.folders, page_not_found_pattern)
-        elif technique == "t":
-            scanTemporaryFiles(args.url)
-        elif technique == "g":
-            scanGoogleDorks(args.url, google_dorks)
-        elif technique == "d":
-            scanReverseDns(args.url)
-        else:
-            print "[*] unknown technique : %s" % technique
-    print "[*] Crawling finished"
+        # Configure crawler
+        Crawlic.page_not_found_pattern = page_not_found_pattern
+        Crawlic.settings = {'domain': domain,
+                            'start_page': '/',
+                            'stay_in_domain': True,
+                            'protocol': protocol + "://",
+                            'valid_links': loadExtensions(args.extensions),
+                            'headers': {'Referer': domain,
+                                        'User-Agent': getRandomUserAgent()
+                                        }
+                            }
+
+        # Start recon here
+        for technique in args.techniques:
+            if technique == "r":
+                scanRobots(args.url, page_not_found_pattern)
+            elif technique == "f":
+                scanFolders(args.url, args.folders, page_not_found_pattern)
+            elif technique == "t":
+                scanTemporaryFiles(args.url)
+            elif technique == "g":
+                scanGoogleDorks(args.url, google_dorks)
+            elif technique == "d":
+                scanReverseDns(args.url)
+            else:
+                print("[*] unknown technique : %s" % technique)
+        print("[*] Crawling finished")
+
+    json_data = json.dumps(result_dict)
+    output_file.write_text(json_data)
+    print(f"Final results save to {output_file.absolute().as_uri()}")
 
 
 if __name__ == "__main__":
