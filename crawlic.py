@@ -42,7 +42,6 @@ class Crawlic(Pholcidae):
                     print("   [+] %s" % url + extension)
             except requests.exceptions.ConnectionError as e:
                 print("[!] %s : %s" % (url, e))
-                # TODO: here?
 
 
 """
@@ -112,17 +111,6 @@ def getRandomUserAgent():
     return random.choice(user_agent_list)
 
 
-# def printBanner(banner_file):
-#     """ print(a fucking awesome ascii art banner """
-#     banner_length = 0
-#     for line in [line.rstrip() for line in open(banner_file)]:
-#         print(line)
-#         if len(line) > banner_length:
-#             banner_length = len(line)
-#
-#     print("\n" + "#" * banner_length + "\n")
-
-
 def fetch_repos(repo_type, url, output_path):
     """ Clone remote repo in local folder"""
 
@@ -147,8 +135,7 @@ def fetch_repos(repo_type, url, output_path):
                            'rip-svn.pl')
 
     full_cmd = 'cd %s && %s -u %s' % (output_path, cmd, url)
-    output = subprocess.getoutput(full_cmd)
-    # TODO
+    subprocess.getoutput(full_cmd)
     # commands.getoutput(full_cmd)
     print("        [+] %s repo cloned into %s" % (repo_type, output_path))
 
